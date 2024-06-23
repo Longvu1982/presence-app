@@ -4,8 +4,6 @@ import { authentication, random } from "../helper";
 import jwt from "jsonwebtoken";
 
 export const register = async (req: express.Request, res: express.Response) => {
-  console.log("Enter route");
-
   try {
     const { email = "", password = "", fullName = "" } = req.body;
     if (!email.trim() || !password.trim() || !fullName.trim()) {
@@ -41,8 +39,6 @@ export const register = async (req: express.Request, res: express.Response) => {
 };
 
 export const login = async (req: express.Request, res: express.Response) => {
-  console.log("Enter route");
-
   try {
     const { email = "", password = "" } = req.body;
     if (!email.trim() || !password.trim()) {
@@ -61,14 +57,15 @@ export const login = async (req: express.Request, res: express.Response) => {
     } = existingUser;
 
     if (hashPassword === authentication(salt, password)) {
-      const token = jwt.sign({ email }, process.env.JWT_SECRET_HASH_KEY);
+      const token = jwt.sign({ email }, process.env.JWT_SECRET_HASH_KEY, {
+        expiresIn: "24h",
+      });
       existingUser.authentication.sessionToken = token;
       await existingUser.save();
 
       existingUser.authentication.salt = undefined;
       existingUser.authentication.password = undefined;
 
-      console.log(existingUser);
       return res
         .send({
           status: 200,
