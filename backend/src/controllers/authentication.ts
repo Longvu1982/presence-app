@@ -1,18 +1,18 @@
-import { createUser, getUserByEmail } from "../db/users";
+import { createUser, getUserByEmail, getUserById, updateUserById } from "../db/users";
 import express from "express";
-import { authentication, random } from "../helper";
+import { authentication, commonRes, random } from "../helper";
 import jwt from "jsonwebtoken";
 
 export const register = async (req: express.Request, res: express.Response) => {
   try {
     const { email = "", password = "", fullName = "" } = req.body;
     if (!email.trim() || !password.trim() || !fullName.trim()) {
-      return res.send({ status: 400, message: "Missing arguments" });
+      return commonRes(res, { status: 400, message: "Missing arguments" });
     }
     const existingUser = await getUserByEmail(email);
 
     if (existingUser) {
-      return res.send({ status: 400, message: "User already existed" });
+      return commonRes(res, { status: 400, message: "User already existed" });
     }
     const salt = random();
 
@@ -25,13 +25,11 @@ export const register = async (req: express.Request, res: express.Response) => {
       },
     });
 
-    return res
-      .send({
-        status: 200,
-        message: "Success",
-        result: res.json(user),
-      })
-      .end();
+    return commonRes(res, {
+      status: 200,
+      message: "Success",
+      result: res.json(user),
+    });
   } catch (e) {
     console.log(e);
     return res.sendStatus(400);
@@ -42,14 +40,12 @@ export const login = async (req: express.Request, res: express.Response) => {
   try {
     const { email = "", password = "" } = req.body;
     if (!email.trim() || !password.trim()) {
-      return res.send({ status: 400, message: "Missing arguments" });
+      return commonRes(res, { status: 400, message: "Missing arguments" });
     }
-    const existingUser = await getUserByEmail(email).select(
-      "+authentication.salt +authentication.password"
-    );
+    const existingUser = await getUserByEmail(email).select("+authentication.salt +authentication.password");
 
     if (!existingUser) {
-      return res.send({ status: 400, message: "Email not found" });
+      return commonRes(res, { status: 400, message: "Email not found" });
     }
 
     const {
@@ -66,15 +62,52 @@ export const login = async (req: express.Request, res: express.Response) => {
       existingUser.authentication.salt = undefined;
       existingUser.authentication.password = undefined;
 
-      return res
-        .send({
-          status: 200,
-          message: "Login successfully",
-          result: existingUser,
-        })
-        .end();
+      return commonRes(res, {
+        status: 200,
+        message: "Login successfully",
+        result: existingUser,
+      });
     } else {
-      return res.send({ status: 400, message: "Password incorrect!" });
+      return commonRes(res, { status: 400, message: "Password incorrect" });
+    }
+  } catch (e) {
+    console.log(e);
+    return res.sendStatus(400);
+  }
+};
+
+export const logout = async (req: express.Request, res: express.Response) => {
+  try {
+    const { email } = req.body;
+    if (!email?.trim()) {
+      return commonRes(res, { status: 400, message: "Missing UID" });
+    }
+    const existingUser = await getUserByEmail(email).select("+authentication.salt +authentication.password +authentication.sessionToken");
+
+    if (!existingUser) {
+      return commonRes(res, { status: 400, message: "Email not found" });
+    }
+
+    const {
+      authentication: { sessionToken },
+    } = existingUser;
+
+    console.log(sessionToken);
+
+    if (!sessionToken) {
+      return commonRes(res, {
+        status: 200,
+        message: "Logout successfully",
+        result: true,
+      });
+    } else {
+      existingUser.authentication.sessionToken = "";
+      await existingUser.save();
+      return commonRes(res, {
+        status: 200,
+        message: "Logout successfully",
+        result: true,
+      });
     }
   } catch (e) {
     console.log(e);
